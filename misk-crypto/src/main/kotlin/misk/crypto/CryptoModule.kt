@@ -93,6 +93,14 @@ fun Aead.encrypt(plaintext: ByteString, aad: ByteArray? = null): ByteString {
   return encrypted.toByteString()
 }
 
+fun Aead.encypt(plaintext : ByteString, encryptionContext : Map<String, String?>?) : ByteString {
+  val plaintextBytes = plaintext.toByteArray()
+  val packet = EncryptionPacket.withEncryptionContext(encryptionContext)
+  val encrypted = this.encrypt(plaintextBytes, packet.serializeEncryptionContext())
+  plaintextBytes.fill(0)
+  return packet.serialize(encrypted).toByteString()
+}
+
 /**
  * Extension function for convenient decryption of [ByteString]s.
  * This function also makes sure that no extra copies of the plaintext data are kept in memory.
@@ -106,6 +114,14 @@ fun Aead.encrypt(plaintext: ByteString, aad: ByteArray? = null): ByteString {
 )
 fun Aead.decrypt(ciphertext: ByteString, aad: ByteArray? = null): ByteString {
   val decryptedBytes = this.decrypt(ciphertext.toByteArray(), aad)
+  val decrypted = decryptedBytes.toByteString()
+  decryptedBytes.fill(0)
+  return decrypted
+}
+
+fun Aead.decrypt(ciphertext : ByteString, encryptionContext: Map<String, String?>?) : ByteString {
+  val packet = EncryptionPacket.fromByteArray(ciphertext.toByteArray(), encryptionContext)
+  val decryptedBytes = this.decrypt(packet.ciphertext, packet.serializeEncryptionContext())
   val decrypted = decryptedBytes.toByteString()
   decryptedBytes.fill(0)
   return decrypted
