@@ -5,6 +5,28 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 
+/**
+ * An [EncryptionPacket] wraps a ciphertext and the encryption context associated with it.
+ *
+ * Misk uses Tink to encrypt data, which uses Encryption Context (EC),
+ * or Additional Authentication Data (AAD) to authenticate ciphertext.
+ * This class introduces a new, higher level abstraction, that’ll be used instead of the
+ * AAD byte array interfaces Tink exposes to users.
+ * The main reasons to do this are:
+ *   - Preventing the misuse of AAD
+ *   - Preventing undecipherable ciphertexts from being created
+ *   - Exposing a user friendlier interface
+ *
+ * ## Encryption Context Specification
+ *   - `Map<String, String?>`
+ *   - Null values are allowed
+ *   - No "=" or "|" characters are allowed in the encryption context
+ *   - EC is optional, and can be completely omitted from the encryption operation
+ * The encryption context will be serialized using the following format:
+ * `key1=value1|key2|key3=value3`
+ *
+ * For the full documentation of the [EncryptionPacket] serialization, read FORMAT.md
+ */
 class EncryptionPacket private constructor(
   private val context: Map<String, String?>?,
   var ciphertext: ByteArray?
@@ -25,15 +47,13 @@ class EncryptionPacket private constructor(
       }
       val sanitizedContext = context.map { (k, v) -> k.toLowerCase() to v }.toMap()
       if ((context.keys - sanitizedContext.keys).isNotEmpty()) {
-        throw InvalidEncryptionContextException("")
+        throw InvalidEncryptionContextException("found duplicate encryption context key")
       }
       return EncryptionPacket(sanitizedContext, null)
     }
 
     /**
      * Creates a new [EncryptionPacket] from the given [serialized] ByteArray.
-     *
-     * Thiis function parses the [serialized]
      */
     fun fromByteArray(serialized: ByteArray, encryptionContext: Map<String, String?>? = null): EncryptionPacket {
       val src = DataInputStream(ByteArrayInputStream(serialized))
@@ -49,15 +69,14 @@ class EncryptionPacket private constructor(
       }
       if (packet.context != null) {
         if (encryptionContext == null) {
-          throw InvalidEncryptionContextException("")
+          throw InvalidEncryptionContextException("encryption context doesn't match")
         }
-        val compareTo = EncryptionPacket
-            .withEncryptionContext(encryptionContext).serializeEncryptionContext()!!
+        val compareTo = withEncryptionContext(encryptionContext).serializeEncryptionContext()!!
         if (!packet.serializeEncryptionContext()!!.contentEquals(compareTo)) {
-          throw InvalidEncryptionContextException("")
+          throw InvalidEncryptionContextException("encryption context doesn't match")
         }
       } else if (encryptionContext != null) {
-        throw InvalidEncryptionContextException("")
+        throw InvalidEncryptionContextException("encryption context doesn't match")
       }
       return packet
     }
@@ -66,7 +85,7 @@ class EncryptionPacket private constructor(
       // (bitmask) not used
       src.readInt()
 
-      var ciphertext: ByteArray? = null
+      val ciphertext: ByteArray?
       var context: Map<String, String?>? = null
       var type = src.read()
       if (type == EntryType.ENCRYPTION_CONTEXT.type) {
@@ -76,7 +95,7 @@ class EncryptionPacket private constructor(
         context = deserializeEncryptionContext(serializedContext.toString(Charsets.UTF_8))
         type = src.read()
         if (type != EntryType.SIZED_CIPHERTEXT.type) {
-          throw InvalidEncryptionContextException("")
+          throw InvalidEncryptionContextException("couldn't parse data as an encryption packet")
         }
         size = src.readInt()
         ciphertext = ByteArray(size)
@@ -86,14 +105,11 @@ class EncryptionPacket private constructor(
         ciphertext = ByteArray(size)
         src.readFully(ciphertext)
       } else {
-        throw InvalidEncryptionContextException("")
+        throw InvalidEncryptionContextException("couldn't parse data as an encryption packet")
       }
 
       if (src.read() >= 0) {
-        throw InvalidEncryptionContextException("")
-      }
-      if (ciphertext == null) {
-        throw InvalidEncryptionContextException("")
+        throw InvalidEncryptionContextException("couldn't parse data as an encryption packet")
       }
 
       return EncryptionPacket(context, ciphertext)
@@ -110,13 +126,13 @@ class EncryptionPacket private constructor(
               .map { it.name.toLowerCase() to null }
               .toMap())
         } catch(e: Throwable) {
-          throw InvalidEncryptionContextException("", e)
+          throw InvalidEncryptionContextException("invalid bitmask", e)
         }
       }
 
       if (context != null) {
         if (src.read() != EntryType.EXPANDED_CONTEXT_DESCRIPTION.type) {
-          throw InvalidEncryptionContextException("")
+          throw InvalidEncryptionContextException("expected expanded encryption context to be present")
         }
         val size = src.readUnsignedShort()
         val serializedExpandedContextDescription = ByteArray(size)
@@ -126,7 +142,7 @@ class EncryptionPacket private constructor(
         context.putAll(expanded!!)
       } else {
         if (src.read() != EntryType.ENCRYPTION_CONTEXT.type) {
-          throw InvalidEncryptionContextException("")
+          throw InvalidEncryptionContextException("expected encryption context to be present")
         }
         val size = src.readUnsignedShort()
         val serializedContext = ByteArray(size)
@@ -135,7 +151,7 @@ class EncryptionPacket private constructor(
             serializedContext.toString(Charsets.UTF_8))!!.toMutableMap()
       }
       if (src.read() != EntryType.CIPHERTEXT.type) {
-        throw InvalidEncryptionContextException("")
+        throw InvalidEncryptionContextException("no ciphertext found")
       }
       val ciphertextStream = ByteArrayOutputStream()
       var readByte = src.read()
@@ -161,7 +177,8 @@ class EncryptionPacket private constructor(
   }
 
   /**
-   *
+   * Serializes the encryption context to a [ByteArray] s it could be passed to Tink's
+   * encryption/decryption methods.
    */
   fun serializeEncryptionContext(additionalContext: Map<String, String>? = null) : ByteArray? {
     if (context == null) {
@@ -172,11 +189,11 @@ class EncryptionPacket private constructor(
       toSerialize = context.mapValues { (k, v) ->
         if (v == null) {
           additionalContext.getOrElse(k) {
-            throw InvalidEncryptionContextException("")
+            throw InvalidEncryptionContextException("no value provided for $k")
           }
         } else {
           if (additionalContext.containsKey(k)) {
-            throw InvalidEncryptionContextException("")
+            throw InvalidEncryptionContextException("value already set for key $k")
           }
           v
         }
@@ -201,7 +218,7 @@ class EncryptionPacket private constructor(
   }
 
   /**
-   *
+   * Serializes the given [ciphertext] and associated encryption context to a [ByteArray]
    */
   fun serialize(ciphertext: ByteArray) : ByteArray {
     val outputStream = ByteStreams.newDataOutput()
