@@ -3,7 +3,6 @@ ext.dep = [
   "assertj": "org.assertj:assertj-core:3.15.0",
   "awaitility": "org.awaitility:awaitility-kotlin:4.0.2",
   "awsApi": "com.amazonaws:aws-java-sdk:1.11.728",
-  "awsEncryption": "com.amazonaws:aws-encryption-sdk-java:1.6.1",
   "awsSqs": "com.amazonaws:aws-java-sdk-sqs:1.11.728",
   "bouncycastle": "org.bouncycastle:bcprov-jdk15on:1.64",
   "concurrencyLimitsCore": "com.netflix.concurrency-limits:concurrency-limits-core:0.3.6",

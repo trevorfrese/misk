@@ -1,6 +1,5 @@
 dependencies {
   compile dep.tink
-  compile dep.awsEncryption
   compile project(':misk')
 
   testCompile project(':misk-testing')

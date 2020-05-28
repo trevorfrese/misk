@@ -55,7 +55,10 @@ class EncryptionPacket private constructor(
     /**
      * Creates a new [EncryptionPacket] from the given [serialized] ByteArray.
      */
-    fun fromByteArray(serialized: ByteArray, encryptionContext: Map<String, String?>? = null): EncryptionPacket {
+    fun fromByteArray(
+      serialized: ByteArray,
+      encryptionContext: Map<String, String?>? = null
+    ) : EncryptionPacket {
       val src = DataInputStream(ByteArrayInputStream(serialized))
 
       val packet = when(val version = src.readUnsignedByte()) {
@@ -116,10 +119,10 @@ class EncryptionPacket private constructor(
     }
 
     private fun parseV1(src : DataInputStream) : EncryptionPacket {
-      val bitmask = src.readUnsignedShort()
-      var context : MutableMap<String, String?>? = null
+      val bitmask = src.readInt()
+      var context = mutableMapOf<String, String?>()
+      var ciphertext : ByteArray? = null
       if (bitmask != 0) {
-        context = mutableMapOf()
         try {
           context.putAll(ContextKey.values()
               .filter { it.index and bitmask != 0 }
@@ -130,43 +133,51 @@ class EncryptionPacket private constructor(
         }
       }
 
-      if (context != null) {
-        if (src.read() != EntryType.EXPANDED_CONTEXT_DESCRIPTION.type) {
-          throw InvalidEncryptionContextException("expected expanded encryption context to be present")
+      when(src.read()) {
+        EntryType.EXPANDED_CONTEXT_DESCRIPTION.type -> {
+          val size = src.readUnsignedShort()
+          val serializedExpandedContextDescription = ByteArray(size)
+          src.readFully(serializedExpandedContextDescription)
+          val expanded = deserializeEncryptionContext(
+              serializedExpandedContextDescription.toString(Charsets.UTF_8))
+          context.putAll(expanded!!)
         }
-        val size = src.readUnsignedShort()
-        val serializedExpandedContextDescription = ByteArray(size)
-        src.readFully(serializedExpandedContextDescription)
-        val expanded = deserializeEncryptionContext(
-            serializedExpandedContextDescription.toString(Charsets.UTF_8))
-        context.putAll(expanded!!)
-      } else {
-        if (src.read() != EntryType.ENCRYPTION_CONTEXT.type) {
-          throw InvalidEncryptionContextException("expected encryption context to be present")
+        EntryType.ENCRYPTION_CONTEXT.type -> {
+          val size = src.readUnsignedShort()
+          val serializedContext = ByteArray(size)
+          src.readFully(serializedContext)
+          context = deserializeEncryptionContext(
+              serializedContext.toString(Charsets.UTF_8))!!.toMutableMap()
         }
-        val size = src.readUnsignedShort()
-        val serializedContext = ByteArray(size)
-        src.readFully(serializedContext)
-        context = deserializeEncryptionContext(
-            serializedContext.toString(Charsets.UTF_8))!!.toMutableMap()
+        EntryType.CIPHERTEXT.type -> {
+          ciphertext = readCiphertext(src)
+        }
       }
-      if (src.read() != EntryType.CIPHERTEXT.type) {
-        throw InvalidEncryptionContextException("no ciphertext found")
+      if (ciphertext == null && src.read() == EntryType.CIPHERTEXT.type) {
+        ciphertext = readCiphertext(src)
       }
+
+      return EncryptionPacket(context, ciphertext!!)
+    }
+
+    private fun readCiphertext(src: DataInputStream) : ByteArray {
       val ciphertextStream = ByteArrayOutputStream()
       var readByte = src.read()
       while(readByte >= 0) {
         ciphertextStream.write(readByte)
         readByte = src.read()
       }
-      val ciphertext = ciphertextStream.toByteArray()
-      return EncryptionPacket(context, ciphertext)
+      return ciphertextStream.toByteArray()
     }
 
     private fun deserializeEncryptionContext(serialized: String?) : Map<String, String?>? {
       if (serialized == null) {
         return null
       }
+      if (serialized.isEmpty()) {
+        return mapOf()
+      }
+
       return serialized.split("|")
           .map { pair ->
             val components = pair.split("=")
@@ -245,8 +256,8 @@ class EncryptionPacket private constructor(
   }
 
   /**
-   * Some common context keys are typically taken from the environment and can be compactly encoded via a bitmask; keys
-   * and their bit offsets are defined below.
+   * Some common context keys are typically taken from the environment
+   * and can be compactly encoded via a bitmask; keys and their bit offsets are defined below.
    *
    * Maximum value types supported is 15.
    */

@@ -1,7 +1,5 @@
 # Misk encryption packet format
 
-# Misk encryption packet format
-
 ## Overview
 
 Misk uses Tink to encrypt data, which uses Encryption Context (EC), 
@@ -83,12 +81,12 @@ Below is the exact specification of the encryption packet.
 | Size | Description | Type |
 |------|-------------|------|
 | 1 | Schema version, encoded as a single byte | Integer |
-| 2 | Bitmask (not used)) | Integer |
+| 4 | Bitmask (not used)) | Integer |
 | 1 | The number 2 - representing the following bytes are the complete serialized AAD | Integer |
-| 2 | Length | Integer |
+| 4 | Length | Integer |
 | AAD array length | Serialized AAD | ByteArray |
 | 1 | The number 3 - representing the following bytes are ciphertext | Integer |
-| 2 | Ciphertext length | Integer |
+| 4 | Ciphertext length | Integer |
 | Ciphertext length | Ciphertext | ByteArray |
 
 - Serialized encryption context is optional
