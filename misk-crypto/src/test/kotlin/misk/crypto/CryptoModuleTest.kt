@@ -18,6 +18,7 @@ import misk.logging.LogCollector
 import misk.logging.LogCollectorService
 import misk.testing.MiskTest
 import misk.testing.MiskTestModule
+import okio.ByteString.Companion.encodeUtf8
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -106,6 +107,18 @@ class CryptoModuleTest {
     kr.readKey(key, "aws-kms://some-uri", client)
     val out = lc.takeMessage()
     assertThat(out).contains("using obsolete key format")
+  }
+
+  @Test
+  fun testAeadExtensioonFunctions() {
+    val keyHandle = KeysetHandle.generateNew(AeadKeyTemplates.AES256_GCM)
+    val injector = getInjector(listOf(Pair("test", keyHandle)))
+    val testKey = injector.getInstance(AeadKeyManager::class.java)["test"]
+    val encryptionContext = mapOf("key1" to "value1")
+    val plaintext = "Hello world!".encodeUtf8()
+    val ciphertext = testKey.encypt(plaintext, encryptionContext)
+    val decrypted = testKey.decrypt(ciphertext, encryptionContext)
+    assertThat(decrypted).isEqualTo(plaintext)
   }
 
   @Disabled

@@ -68,17 +68,25 @@ class EncryptionPacket private constructor(
 
       var ciphertext: ByteArray? = null
       var context: Map<String, String?>? = null
-      val type = src.read()
+      var type = src.read()
       if (type == EntryType.ENCRYPTION_CONTEXT.type) {
-        val size = src.readInt()
+        var size = src.readInt()
         val serializedContext = ByteArray(size)
         src.readFully(serializedContext)
         context = deserializeEncryptionContext(serializedContext.toString(Charsets.UTF_8))
-      }
-      if (type == EntryType.SIZED_CIPHERTEXT.type) {
+        type = src.read()
+        if (type != EntryType.SIZED_CIPHERTEXT.type) {
+          throw InvalidEncryptionContextException("")
+        }
+        size = src.readInt()
+        ciphertext = ByteArray(size)
+        src.readFully(ciphertext)
+      } else if (type == EntryType.SIZED_CIPHERTEXT.type) {
         val size = src.readInt()
         ciphertext = ByteArray(size)
         src.readFully(ciphertext)
+      } else {
+        throw InvalidEncryptionContextException("")
       }
 
       if (src.read() >= 0) {
