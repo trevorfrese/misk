@@ -4,6 +4,7 @@ import com.google.common.io.ByteStreams
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
+import java.security.GeneralSecurityException
 
 /**
  * An [EncryptionPacket] wraps a ciphertext and the encryption context associated with it.
@@ -67,7 +68,7 @@ class EncryptionPacket private constructor(
         CURRENT_VERSION ->
           parseV2(src)
         else ->
-          throw InvalidEncryptionContextException(
+          throw InvalidEncryptionPacketFormatException(
               String.format("unsupported packet version %s", version))
       }
       if (packet.context != null) {
@@ -156,8 +157,11 @@ class EncryptionPacket private constructor(
       if (ciphertext == null && src.read() == EntryType.CIPHERTEXT.type) {
         ciphertext = readCiphertext(src)
       }
+      if (ciphertext == null) {
+        throw InvalidEncryptionPacketFormatException("no ciphetext found")
+      }
 
-      return EncryptionPacket(context, ciphertext!!)
+      return EncryptionPacket(context, ciphertext)
     }
 
     private fun readCiphertext(src: DataInputStream) : ByteArray {
@@ -271,5 +275,10 @@ class EncryptionPacket private constructor(
     EVENT_TOPIC(1 shl 6),
     SERVICE_NAME(1 shl 7),
     CUSTOMER_TOKEN(1 shl 8),
+  }
+
+  class InvalidEncryptionPacketFormatException : GeneralSecurityException {
+    constructor(message: String) : super(message)
+    constructor(message: String, t: Throwable) : super(message, t)
   }
 }

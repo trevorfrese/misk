@@ -120,8 +120,16 @@ fun Aead.decrypt(ciphertext: ByteString, aad: ByteArray? = null): ByteString {
 }
 
 fun Aead.decrypt(ciphertext : ByteString, encryptionContext: Map<String, String?>?) : ByteString {
-  val packet = EncryptionPacket.fromByteArray(ciphertext.toByteArray(), encryptionContext)
-  val decryptedBytes = this.decrypt(packet.ciphertext, packet.serializeEncryptionContext())
+  val (payload, aad) = try {
+    val packet = EncryptionPacket.fromByteArray(ciphertext.toByteArray(), encryptionContext)
+    Pair(packet.ciphertext, packet.serializeEncryptionContext())
+  } catch (e: EncryptionPacket.InvalidEncryptionPacketFormatException) {
+    Pair(ciphertext.toByteArray(), EncryptionPacket
+        .withEncryptionContext(encryptionContext)
+        .serializeEncryptionContext()
+    )
+  }
+  val decryptedBytes = this.decrypt(payload, aad)
   val decrypted = decryptedBytes.toByteString()
   decryptedBytes.fill(0)
   return decrypted
@@ -148,6 +156,17 @@ fun DeterministicAead.encryptDeterministically(
   return encrypted.toByteString()
 }
 
+fun DeterministicAead.encryptDeterministically(
+  plaintext: ByteString,
+  encryptionContext: Map<String, String?>?
+): ByteString {
+  val plaintextBytes = plaintext.toByteArray()
+  val packet = EncryptionPacket.withEncryptionContext(encryptionContext ?: emptyMap())
+  val encrypted = this.encryptDeterministically(plaintextBytes, packet.serializeEncryptionContext())
+  plaintextBytes.fill(0)
+  return packet.serialize(encrypted).toByteString()
+}
+
 /**
  * Extension function for convenient decryption of [ByteString]s.
  * This function also makes sure that no extra copies of the plaintext data are kept in memory.
@@ -164,6 +183,26 @@ fun DeterministicAead.decryptDeterministically(
   aad: ByteArray? = null
 ): ByteString {
   val decryptedBytes = this.decryptDeterministically(ciphertext.toByteArray(), aad)
+  val decrypted = decryptedBytes.toByteString()
+  decryptedBytes.fill(0)
+  return decrypted
+}
+
+fun DeterministicAead.decryptDeterministically(
+  ciphertext: ByteString,
+  encryptionContext: Map<String, String?>?
+): ByteString {
+  val bytes = ciphertext.toByteArray()
+  val (payload, aad) = try {
+    val packet = EncryptionPacket.fromByteArray(bytes, encryptionContext ?: emptyMap())
+    Pair(packet.ciphertext, packet.serializeEncryptionContext())
+  } catch(e: EncryptionPacket.InvalidEncryptionPacketFormatException) {
+    Pair(bytes, EncryptionPacket
+        .withEncryptionContext(encryptionContext ?: emptyMap())
+        .serializeEncryptionContext()
+    )
+  }
+  val decryptedBytes = this.decryptDeterministically(payload, aad)
   val decrypted = decryptedBytes.toByteString()
   decryptedBytes.fill(0)
   return decrypted
