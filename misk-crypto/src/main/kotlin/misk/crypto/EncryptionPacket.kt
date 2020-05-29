@@ -121,6 +121,9 @@ class EncryptionPacket private constructor(
 
     private fun parseV1(src : DataInputStream) : EncryptionPacket {
       val bitmask = src.readInt()
+      if (bitmask > Short.MAX_VALUE) {
+        throw InvalidEncryptionPacketFormatException("invalid bitmask")
+      }
       var context = mutableMapOf<String, String?>()
       var ciphertext : ByteArray? = null
       if (bitmask != 0) {
@@ -158,7 +161,7 @@ class EncryptionPacket private constructor(
         ciphertext = readCiphertext(src)
       }
       if (ciphertext == null) {
-        throw InvalidEncryptionPacketFormatException("no ciphetext found")
+        throw InvalidEncryptionPacketFormatException("no ciphertext found")
       }
 
       return EncryptionPacket(context, ciphertext)

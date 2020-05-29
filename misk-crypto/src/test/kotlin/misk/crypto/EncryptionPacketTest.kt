@@ -370,4 +370,18 @@ class EncryptionPacketTest {
     assertThatCode { EncryptionPacket.fromByteArray(output.toByteArray(), mapOf("table_name" to null)) }
         .doesNotThrowAnyException()
   }
+
+  @Test
+  fun testInvalidPacketWithNoCiphertext() {
+    val output = byteArrayOf(1, 0, 0, 0, 0, 5) // represents a V1 encryption packet with an invalid type
+    assertThatThrownBy { EncryptionPacket.fromByteArray(output, emptyMap()) }
+        .hasMessage("no ciphertext found")
+  }
+
+  @Test
+  fun testInvalidPacketWithInvalidBitmask() {
+    val output = byteArrayOf(1, 0, 1, 0, 0) // represents a V1 packet with a bitmask > Short.MAX_VALUE
+    assertThatThrownBy { EncryptionPacket.fromByteArray(output, emptyMap()) }
+        .hasMessage("invalid bitmask")
+  }
 }
