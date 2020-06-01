@@ -93,12 +93,12 @@ fun Aead.encrypt(plaintext: ByteString, aad: ByteArray? = null): ByteString {
   return encrypted.toByteString()
 }
 
-fun Aead.encypt(plaintext : ByteString, encryptionContext : Map<String, String?>?) : ByteString {
+fun Aead.encrypt(plaintext : ByteString, encryptionContext : Map<String, String>?) : ByteString {
   val plaintextBytes = plaintext.toByteArray()
-  val packet = EncryptionPacket.withEncryptionContext(encryptionContext)
-  val encrypted = this.encrypt(plaintextBytes, packet.serializeEncryptionContext())
+  val aad = CiphertextFormat.serializeEncryptionContext(encryptionContext)
+  val encrypted = this.encrypt(plaintextBytes, aad)
   plaintextBytes.fill(0)
-  return packet.serialize(encrypted).toByteString()
+  return CiphertextFormat.serialize(encrypted, aad).toByteString()
 }
 
 /**
@@ -119,15 +119,11 @@ fun Aead.decrypt(ciphertext: ByteString, aad: ByteArray? = null): ByteString {
   return decrypted
 }
 
-fun Aead.decrypt(ciphertext : ByteString, encryptionContext: Map<String, String?>?) : ByteString {
+fun Aead.decrypt(ciphertext : ByteString, encryptionContext: Map<String, String>?) : ByteString {
   val (payload, aad) = try {
-    val packet = EncryptionPacket.fromByteArray(ciphertext.toByteArray(), encryptionContext)
-    Pair(packet.ciphertext, packet.serializeEncryptionContext())
-  } catch (e: EncryptionPacket.InvalidEncryptionPacketFormatException) {
-    Pair(ciphertext.toByteArray(), EncryptionPacket
-        .withEncryptionContext(encryptionContext)
-        .serializeEncryptionContext()
-    )
+    CiphertextFormat.deserialize(ciphertext.toByteArray(), encryptionContext)
+  } catch (e: CiphertextFormat.InvalidEncryptionPacketFormatException) {
+    Pair(ciphertext.toByteArray(), CiphertextFormat.serializeEncryptionContext(encryptionContext))
   }
   val decryptedBytes = this.decrypt(payload, aad)
   val decrypted = decryptedBytes.toByteString()
@@ -158,13 +154,13 @@ fun DeterministicAead.encryptDeterministically(
 
 fun DeterministicAead.encryptDeterministically(
   plaintext: ByteString,
-  encryptionContext: Map<String, String?>?
+  encryptionContext: Map<String, String>?
 ): ByteString {
   val plaintextBytes = plaintext.toByteArray()
-  val packet = EncryptionPacket.withEncryptionContext(encryptionContext ?: emptyMap())
-  val encrypted = this.encryptDeterministically(plaintextBytes, packet.serializeEncryptionContext())
+  val aad = CiphertextFormat.serializeEncryptionContext(encryptionContext)
+  val encrypted = this.encryptDeterministically(plaintextBytes, aad ?: byteArrayOf())
   plaintextBytes.fill(0)
-  return packet.serialize(encrypted).toByteString()
+  return CiphertextFormat.serialize(encrypted, aad).toByteString()
 }
 
 /**
@@ -190,19 +186,15 @@ fun DeterministicAead.decryptDeterministically(
 
 fun DeterministicAead.decryptDeterministically(
   ciphertext: ByteString,
-  encryptionContext: Map<String, String?>?
+  encryptionContext: Map<String, String>?
 ): ByteString {
   val bytes = ciphertext.toByteArray()
   val (payload, aad) = try {
-    val packet = EncryptionPacket.fromByteArray(bytes, encryptionContext ?: emptyMap())
-    Pair(packet.ciphertext, packet.serializeEncryptionContext())
-  } catch(e: EncryptionPacket.InvalidEncryptionPacketFormatException) {
-    Pair(bytes, EncryptionPacket
-        .withEncryptionContext(encryptionContext ?: emptyMap())
-        .serializeEncryptionContext()
-    )
+    CiphertextFormat.deserialize(bytes, encryptionContext)
+  } catch(e: CiphertextFormat.InvalidEncryptionPacketFormatException) {
+    Pair(bytes, CiphertextFormat.serializeEncryptionContext(encryptionContext))
   }
-  val decryptedBytes = this.decryptDeterministically(payload, aad)
+  val decryptedBytes = this.decryptDeterministically(payload, aad ?: byteArrayOf())
   val decrypted = decryptedBytes.toByteString()
   decryptedBytes.fill(0)
   return decrypted

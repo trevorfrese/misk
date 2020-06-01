@@ -117,11 +117,10 @@ class CryptoModuleTest {
     val testKey = injector.getInstance(AeadKeyManager::class.java)["test"]
 
     // test with encryption context
-    var encryptionContext: Map<String, String?>? = mapOf("key1" to "value1")
+    var encryptionContext: Map<String, String>? = mapOf("key1" to "value1")
     val plaintext = "Hello world!".encodeUtf8()
-    var ciphertext = testKey.encypt(plaintext, encryptionContext)
-    var decrypted = testKey.decrypt(ciphertext, encryptionContext)
-    assertThat(decrypted).isEqualTo(plaintext)
+    var ciphertext = testKey.encrypt(plaintext, encryptionContext)
+    assertThat(testKey.decrypt(ciphertext, encryptionContext)).isEqualTo(plaintext)
     assertThatThrownBy { testKey.decrypt(ciphertext, emptyMap()) }
         .hasMessage("encryption context doesn't match")
     assertThatThrownBy { testKey.decrypt(ciphertext, null) }
@@ -131,29 +130,24 @@ class CryptoModuleTest {
 
     // test with empty encryption context
     encryptionContext = emptyMap()
-    ciphertext = testKey.encypt(plaintext, encryptionContext)
-    decrypted = testKey.decrypt(ciphertext, encryptionContext)
-    assertThat(decrypted).isEqualTo(plaintext)
-    assertThatThrownBy { testKey.decrypt(ciphertext, null) }
-        .hasMessage("encryption context doesn't match")
+    ciphertext = testKey.encrypt(plaintext, encryptionContext)
+    assertThat(testKey.decrypt(ciphertext, encryptionContext)).isEqualTo(plaintext)
+    assertThat(testKey.decrypt(ciphertext, null)).isEqualTo(plaintext)
     assertThatThrownBy { testKey.decrypt(ciphertext, mapOf("wrong key" to "wrong value")) }
         .hasMessage("encryption context doesn't match")
 
     // test with no encryption context
     encryptionContext = null
-    ciphertext = testKey.encypt(plaintext, encryptionContext)
-    decrypted = testKey.decrypt(ciphertext, encryptionContext)
-    assertThat(decrypted).isEqualTo(plaintext)
-    assertThatThrownBy { testKey.decrypt(ciphertext, emptyMap()) }
-        .hasMessage("encryption context doesn't match")
+    ciphertext = testKey.encrypt(plaintext, encryptionContext)
+    assertThat(testKey.decrypt(ciphertext, encryptionContext)).isEqualTo(plaintext)
+    assertThat(testKey.decrypt(ciphertext, emptyMap())).isEqualTo(plaintext)
     assertThatThrownBy { testKey.decrypt(ciphertext, mapOf("wrong key" to "wrong value")) }
         .hasMessage("encryption context doesn't match")
 
     // test compatibility with old schema
     val aad = byteArrayOf()
     val oldCiphertext = testKey.encrypt(plaintext.toByteArray(), aad)
-    decrypted = testKey.decrypt(oldCiphertext.toByteString(), emptyMap())
-    assertThat(decrypted).isEqualTo(plaintext)
+    assertThat(testKey.decrypt(oldCiphertext.toByteString(), emptyMap())).isEqualTo(plaintext)
   }
 
   @Disabled
