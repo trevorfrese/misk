@@ -2,7 +2,6 @@ package misk.crypto
 
 import com.google.common.annotations.VisibleForTesting
 import com.google.common.io.ByteStreams
-import okhttp3.internal.toHexString
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -178,29 +177,31 @@ class CiphertextFormat private constructor() {
       return ciphertextStream.toByteArray()
     }
 
-    private const val VARINT_BITMASK = -1 shr 25
-    private const val BYTE_MSB = 1 shl 8
+    private const val SEPTET = (1 shl 7) -1
+    private const val HAS_MORE_BIT = 1 shl 7
 
-    private fun encodeVarInt(size: Int): ByteArray {
+    private fun encodeVarInt(integer: Int): ByteArray {
       val list = mutableListOf<Byte>()
-      var int = size
-      list.add((int and VARINT_BITMASK).toByte())
-      int = size shr 7
-      while(int > 0) {
-        list.add(0, ((int and VARINT_BITMASK) or BYTE_MSB).toByte())
-        int = size shr 7
+      var int = integer
+      var byte = int and SEPTET
+      while(int shr 7 > 0) {
+        list.add((byte or HAS_MORE_BIT).toByte())
+        int = int shr 7
+        byte = int and SEPTET
       }
+      list.add(int.toByte())
+
       return list.toByteArray()
     }
 
     private fun decodeVarInt(src: DataInputStream): Int {
       var byte = src.readByte().toInt()
-      var size = byte and VARINT_BITMASK
-      while (byte and BYTE_MSB > 0) {
+      var integer = byte and SEPTET
+      while (byte and HAS_MORE_BIT > 0) {
         byte = src.readByte().toInt()
-        size += (size shl 7) + (byte and VARINT_BITMASK)
+        integer += ((byte and SEPTET) shl 7)
       }
-      return size
+      return integer
     }
 
     /**

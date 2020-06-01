@@ -7,7 +7,7 @@ import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
-import java.util.Arrays
+import java.util.UUID
 
 @MiskTest
 class EncryptionPacketTest {
@@ -24,6 +24,16 @@ class EncryptionPacketTest {
         "table_name" to "unimportant",
         "database_name" to "unimportant",
         "key" to "value")
+    val serialized = CiphertextFormat.serializeEncryptionContext(context)
+    assertThat(CiphertextFormat.deseriailzeEncryptionContext(serialized))
+        .isNotNull
+        .isEqualTo(context)
+  }
+
+  @Test
+  fun testEncryptionContextSerializationWithVarInts() {
+    val context = mutableMapOf<String, String>()
+    (0..300).forEach { context["$it"] = UUID.randomUUID().toString() }
     val serialized = CiphertextFormat.serializeEncryptionContext(context)
     assertThat(CiphertextFormat.deseriailzeEncryptionContext(serialized))
         .isNotNull
@@ -88,6 +98,17 @@ class EncryptionPacketTest {
         .hasMessage("encryption context doesn't match")
     assertThatThrownBy { CiphertextFormat.deserialize(serialized, emptyMap()) }
         .hasMessage("encryption context doesn't match")
+  }
+
+  @Test
+  fun testFromByteArrayWithLongContext() {
+    val context = mutableMapOf<String, String>()
+    (0..300).forEach { context["$it"] = UUID.randomUUID().toString() }
+    val aad = CiphertextFormat.serializeEncryptionContext(context)
+    val serialized = CiphertextFormat.serialize(fauxCiphertext, aad)
+    val (ciphertext, ciphertextAad) = CiphertextFormat.deserialize(serialized, context)
+    assertThat(ciphertext).isEqualTo(fauxCiphertext)
+    assertThat(ciphertextAad).isEqualTo(aad)
   }
 
   @Test
