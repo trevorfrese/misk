@@ -51,6 +51,30 @@ class EncryptionPacketTest {
   }
 
   @Test
+  fun testEncryptionContextValueTooLong() {
+    val value = (0..Short.MAX_VALUE).joinToString("") { "a" }
+    val context = mapOf("key" to value)
+    assertThatThrownBy { CiphertextFormat.serializeEncryptionContext(context) }
+        .hasMessage("value is too long")
+  }
+
+  @Test
+  fun testEncryptionContextKeyTooLong() {
+    val key = (0..Short.MAX_VALUE).joinToString("") { "a" }
+    val context = mapOf(key to "value")
+    assertThatThrownBy { CiphertextFormat.serializeEncryptionContext(context) }
+        .hasMessage("key is too long")
+  }
+
+  @Test
+  fun testEncryptionContextTooLong() {
+    val key = (100..Short.MAX_VALUE).joinToString("") { "a" }
+    val value = (100..Short.MAX_VALUE).joinToString("") { "a" }
+    assertThatThrownBy { CiphertextFormat.serializeEncryptionContext(mapOf(key to value)) }
+        .hasMessage("encryption context is too long")
+  }
+
+  @Test
   fun testDuplicateKeys() {
     var context = mapOf("Key1" to "value1", "key1" to "value1")
     assertThatThrownBy { CiphertextFormat.serializeEncryptionContext(context) }
