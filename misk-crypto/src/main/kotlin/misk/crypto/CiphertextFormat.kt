@@ -154,7 +154,7 @@ class CiphertextFormat private constructor() {
     }
 
     @VisibleForTesting
-    fun deseriailzeEncryptionContext(aad: ByteArray?): Map<String, String>? {
+    internal fun deserializeEncryptionContext(aad: ByteArray?): Map<String, String>? {
       if (aad == null) {
         return null
       }
@@ -222,7 +222,7 @@ class CiphertextFormat private constructor() {
       val src = DataInputStream(ByteArrayInputStream(serialized))
       val version = src.readByte().toInt()
       if (version != 1) {
-        throw InvalidEncryptionPacketFormatException("")
+        throw InvalidEncryptionPacketFormatException("invalid version")
       }
       val bitmask = src.readInt()
       if (bitmask > Short.MAX_VALUE) {

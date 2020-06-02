@@ -25,7 +25,7 @@ class EncryptionPacketTest {
         "database_name" to "unimportant",
         "key" to "value")
     val serialized = CiphertextFormat.serializeEncryptionContext(context)
-    assertThat(CiphertextFormat.deseriailzeEncryptionContext(serialized))
+    assertThat(CiphertextFormat.deserializeEncryptionContext(serialized))
         .isNotNull
         .isEqualTo(context)
   }
@@ -35,7 +35,7 @@ class EncryptionPacketTest {
     val context = mutableMapOf<String, String>()
     (0..300).forEach { context["$it"] = UUID.randomUUID().toString() }
     val serialized = CiphertextFormat.serializeEncryptionContext(context)
-    assertThat(CiphertextFormat.deseriailzeEncryptionContext(serialized))
+    assertThat(CiphertextFormat.deserializeEncryptionContext(serialized))
         .isNotNull
         .isEqualTo(context)
   }
